@@ -1,99 +1,70 @@
 import requests
-from bs4 import BeautifulSoup
 import re
 import random
 from datetime import datetime
 
-# 配置
 URL = "https://api.urlce.com/cloudflare.html"
 REGIONS = ["US", "JP", "KR", "HK", "SG", "TW"]
 OUTPUT_FILE = "cf-ips.txt"
 MIN_SPEED = 20.0
 
-# 固定随机种子（每天一致）
-random.seed(datetime.now().strftime("%Y%m%d"))
-
 headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36'
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 }
 
-try:
-    response = requests.get(URL, headers=headers, timeout=15)
-    response.raise_for_status()
-except Exception as e:
-    print(f"请求失败: {e}")
-    exit(1)
+response = requests.get(URL, headers=headers, timeout=15)
+text = response.text
 
-soup = BeautifulSoup(response.text, "html.parser")
-table = soup.find("table")
+# 用正則匹配表格行（兼容 Markdown 格式）
+# 匹配格式：| 數字 | 线路 | IP | 丟包 | 延迟 | 速度mb/s | ...
+pattern = r'\|\s*(\d+)\s*\|\s*(电信|联通|移动|多线|IPV6)\s*\|\s*([\d\.\:a-fA-F]+)\s*\|\s*[^|]*\|\s*[^|]*\|\s*([\d\.]+)mb/s'
 
-if not table:
-    print("未找到表格！页面结构变化。")
-    exit(1)
+matches = re.findall(pattern, text, re.MULTILINE | re.IGNORECASE)
 
-rows = table.find_all("tr")[1:]  # 跳过表头
-print(f"找到行数: {len(rows)}")
+ipv4 = []
+ipv6 = []
+seen = set()
 
-ipv4_list = []
-ipv6_list = []
-match_count = 0
-seen_ips = set()
+random.seed(datetime.now().strftime("%Y%m%d"))
 
-for row in rows:
-    cols = [td.get_text(strip=True) for td in row.find_all("td")]
-    if len(cols) < 6:
-        continue
-
-    ip = cols[2]
-    speed_text = cols[5]
-
-    speed_match = re.search(r'([\d.]+)', speed_text)
-    if not speed_match:
-        continue
+for _, line_type, ip, speed_str in matches:
     try:
-        speed = float(speed_match.group(1))
+        speed = float(speed_str)
+        if speed < MIN_SPEED or ip in seen:
+            continue
+        seen.add(ip)
+        region = random.choice(REGIONS)
+        if ':' in ip:
+            ipv6.append(f"[{ip}]#{region}")
+        else:
+            ipv4.append((f"{ip}#{region}", speed))
     except ValueError:
         continue
 
-    if speed < MIN_SPEED or ip in seen_ips:
-        continue
-
-    seen_ips.add(ip)
-    match_count += 1
-    region = random.choice(REGIONS)
-
-    if ':' in ip:
-        formatted = f"[{ip}]#{region}"
-        ipv6_list.append((formatted, speed))
-    else:
-        formatted = f"{ip}#{region}"
-        ipv4_list.append((formatted, speed))
-
 # 按速度降序
-ipv4_list.sort(key=lambda x: x[1], reverse=True)
-ipv6_list.sort(key=lambda x: x[1], reverse=True)
-ipv4_list = [item[0] for item in ipv4_list]
-ipv6_list = [item[0] for item in ipv6_list]
+ipv4.sort(key=lambda x: x[1], reverse=True)
+ipv4 = [item[0] for item in ipv4]
 
-update_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+update_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S HKT")
 
-content = f"""# CloudFlare 优选 IP 列表（速度≥{MIN_SPEED}mb/s）
-# 更新时间：{update_time} (香港时间)
-# 来源：{URL}
-# 有效条目：{match_count}（IPv4 {len(ipv4_list)} / IPv6 {len(ipv6_list)}）
+content = f"""# CloudFlare 优选 IP（速度 ≥ {MIN_SPEED}mb/s）
+# 更新時間：{update_time}
+# 來源：{URL}
+# 有效數量：IPv4 {len(ipv4)} / IPv6 {len(ipv6)}
 
-# IPv4 列表（按速度降序，香港延迟低）
-""" + "\n".join(ipv4_list) + """
+# IPv4（推薦優先用，按速度降序）
+""" + "\n".join(ipv4) + """
 
-# IPv6 列表
-""" + "\n".join(ipv6_list) + """
+# IPv6
+""" + "\n".join(ipv6) + """
 
-# 使用：复制到 v2ray/Clash/Nekobox
+# 使用方式：直接貼到 v2rayN / Nekobox / Clash 自訂優選列表
 """
 
 with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
     f.write(content)
 
-print(f"成功！IPv4: {len(ipv4_list)} 条，IPv6: {len(ipv6_list)} 条")
-if ipv4_list:
-    print("前3 IPv4：\n" + "\n".join(ipv4_list[:3]))
+print(f"完成！抓到 IPv4: {len(ipv4)} 條，IPv6: {len(ipv6)} 條")
+if ipv4:
+    print("前 5 條 IPv4 示例：")
+    print("\n".join(ipv4[:5]))
