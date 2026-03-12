@@ -1,67 +1,57 @@
 import requests
 from bs4 import BeautifulSoup
 import re
-import random
 from datetime import datetime
 
 URL = "https://api.urlce.com/cloudflare.html"
-REGIONS = ["US", "JP", "KR", "HK", "SG", "TW"]
-OUTPUT_FILE = "cf-ips.txt"
 
-random.seed(datetime.now().strftime("%Y%m%d"))
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+}
 
-headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 response = requests.get(URL, headers=headers, timeout=15)
 soup = BeautifulSoup(response.text, "html.parser")
-text = soup.get_text(separator=" ", strip=True)  # 更好地处理空格和换行
 
-# 更宽松的正则：匹配 IP + 速度 mb/s，忽略中间列细节
-# 捕捉 优选IP (IP部分) 和 速度 (数字.mb/s)
-pattern = r'\|\s*\d+\s*\|\s*(电信|联通|移动|多线|IPV6)\s*\|\s*([^\|]+?)\s*\|\s*0\.00%\s*\|\s*[\d.]+ms\s*\|\s*([\d.]+)mb/s\s*\|'
+# 获取所有文本，方便匹配
+text = soup.get_text(separator=" ", strip=True)
 
-matches = re.findall(pattern, text, re.IGNORECASE | re.DOTALL)
+# 匹配模式：找包含 IP 和 mb/s 的行
+# IP 可能是 数字.数字.数字.数字 或 IPv6 格式
+# 速度是 数字.mb/s
+lines = text.splitlines()
+high_speed_ips = []
 
-ipv4_list = []
-ipv6_list = []
-
-print(f"Raw matches found: {len(matches)}")          # 调试：应该接近 40-50
-if matches:
-    print("First few matches:", matches[:3])         # 看前几条是否正确捕获
-
-for provider, ip_raw, speed_str in matches:
-    ip = ip_raw.strip()
-    try:
-        speed = float(speed_str)
-        if speed < 20:
-            continue
-    except ValueError:
+for line in lines:
+    line = line.strip()
+    if not line or '正在加载' in line or '查询' in line:
         continue
+    
+    # 找速度
+    speed_match = re.search(r'([\d.]+)mb/s', line)
+    if not speed_match:
+        continue
+    
+    speed = float(speed_match.group(1))
+    if speed < 20:
+        continue
+    
+    # 从整行提取 IP（找最像 IP 的部分）
+    # IPv4: 四段数字点分隔
+    # IPv6: 含 : 的
+    ip_match = re.search(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', line)
+    if ip_match:
+        ip = ip_match.group(1)
+        high_speed_ips.append(ip)
+        continue
+    
+    # IPv6 匹配（更宽松）
+    ipv6_match = re.search(r'([0-9a-fA-F:]+:[0-9a-fA-F:]+)', line)
+    if ipv6_match:
+        ip = ipv6_match.group(1).strip('[]')  # 去掉可能的 []
+        high_speed_ips.append(ip)
 
-    region = random.choice(REGIONS)
+# 去重 + 排序（可选，按出现顺序）
+high_speed_ips = list(dict.fromkeys(high_speed_ips))
 
-    if ':' in ip and ip.count(':') >= 2:  # 简单判断 IPv6
-        formatted = f"[{ip}]#{region}|IPV6优选|"
-        ipv6_list.append(formatted)
-    else:
-        formatted = f"{ip}#{region}|IPV4优选|"
-        ipv4_list.append(formatted)
-
-# 输出文件
-content = f"""# 麒麟 CloudFlare 优选 IP 列表（速度≥20mb/s）
-# 更新时间：{datetime.now().strftime("%Y-%m-%d %H:%M:%S")} (每天自动更新)
-# 来源：https://api.urlce.com/cloudflare.html
-# 当前高速度主要来自电信线路
-
-## IPv4 优选（香港用户优先前几条，延迟最低）
-""" + "\n".join(ipv4_list) + """
-
-## IPv6 优选（如果有）
-""" + "\n".join(ipv6_list) + """
-
-# 使用方法：复制到 v2rayN / Nekobox / Clash Meta 的优选 IP 列表
-"""
-
-with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-    f.write(content)
-
-print(f"生成完成！IPv4: {len(ipv4_list)} 条，IPv6: {len(ipv6_list)} 条")
+# 只输出 IP，一行一个
+print("\n".join(high_speed_ips))
