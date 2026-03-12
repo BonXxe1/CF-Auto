@@ -1,13 +1,9 @@
-# CloudFlare 優選 IP（速度 ≥ 20.0mb/s）
-# 更新時間：2026-03-12 04:12:00 HKT
-# 來源：https://api.urlce.com/cloudflare.html
-# 總有效數量：IPv4 0 / IPv6 0
+# CloudFlare 優選 IP（速度 ≥20mb/s）
+# 更新時間：2026-03-12 04:22:13 HKT
+# 抓到 IPv4: 0 條 / IPv6: 0 條
 
-# IPv4（推薦優先使用，格式：IP#地區）
-
-
-# IPv6（格式：[IPv6]#地區）
+IPv4:
 
 
-# 使用方式：直接複製到 v2rayN / Nekobox / Clash 的自訂優選列表
-# 香港用戶建議優先測試 HK/SG 開頭的條目，延迟通常最低
+IPv6:
+
