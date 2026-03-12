@@ -1,8 +1,7 @@
 # CloudFlare 優選 IP（多來源整合，按速度降序取最快16個）
-# 更新時間：2026-03-12 04:50:55 HKT
+# 更新時間：2026-03-12 04:56:21 HKT
 # 來源：urlce.com、uouin.com、vvhan.com、wetest.vip、hostmonit.com、164746.xyz、ipdb.api.030101.xyz 等
 # IPv4 最快 14 個 / IPv6 最快 2 個
-# 速度閾值 >= 20.0 mb/s（無速度來源默認 0）
 
 # IPv4 最快 16 個
 162.159.44.90#KR|IPV4优选|
@@ -24,4 +23,4 @@
 [2a06:98c1:3109:be:eed5:a58c:47d9:836d]#TW|IPV6优选|
 [2a06:98c1:310f:6877:8189:86b6:1aa5:b5d]#JP|IPV6优选|
 
-# 使用方式：直接複製到 v2rayN / Nekobox / Clash 的自訂優選列表
+# 使用方式：直接複製到 v2rayN / Nekobox / Clash 自訂優選列表
