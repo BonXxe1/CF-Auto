@@ -1,13 +1,13 @@
-# 麒麟 CloudFlare 优选 IP 列表（速度≥20mb/s）
-# 更新时间：2026-03-12 02:37:56 (每天自动更新)
-# 来源：https://api.urlce.com/cloudflare.html
-# 抓取匹配条目：0，过滤后有效：IPv4 0 / IPv6 0
+# 麒麟 CloudFlare 優選 IP 列表（速度≥20.0mb/s）
+# 更新時間：2026-03-12 02:40:09 (每天自動更新)
+# 來源：https://api.urlce.com/cloudflare.html
+# 抓取有效條目：0（過濾後 IPv4 0 / IPv6 0）
 
-## IPv4 优选（推荐优先使用）
-  # 限制前30条，避免文件过长
-
-## IPv6 优选
+## IPv4 優選（推薦優先使用，主要是电信高速度）
 
 
-# 使用方法：直接复制到 v2rayN / Nekobox / Clash 的自定义优选列表即可
-# 如需完整列表或调整过滤，查看仓库 Actions 日志
+## IPv6 優選
+
+
+# 使用方法：直接複製到 v2rayN / Nekobox / Clash 的自定義優選列表
+# 香港用戶優先試前幾條电信 IP，延迟通常 50ms 左右，速度極穩
