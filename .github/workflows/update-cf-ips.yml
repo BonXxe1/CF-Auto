@@ -1,0 +1,36 @@
+name: 每日更新 CloudFlare 优选 IP
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # 每天 UTC 00:00（香港时间早上 8:00）
+  workflow_dispatch:     # 支持手动运行
+
+permissions:
+  contents: write  # 允许 push 更新
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 安装依赖
+        run: pip install requests beautifulsoup4
+
+      - name: 运行更新脚本
+        run: python update_ips.py
+
+      - name: 提交更新
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add cf-ips.txt
+          git commit -m "自动更新优选 IP 列表 $(date +'%Y-%m-%d')" || echo "没有变化，跳过提交"
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git push
