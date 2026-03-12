@@ -2,30 +2,43 @@ name: 每日更新 CloudFlare 優選 IP
 
 on:
   schedule:
-    - cron: '0 0 * * *'
-  workflow_dispatch:
+    - cron: '0 0 * * *'           # 每天 UTC 00:00（香港時間早上 8:00）
+  workflow_dispatch:              # 支援手動觸發
 
 permissions:
-  contents: write
+  contents: write                 # 必須有寫入權限
 
 jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - name: 檢出倉庫
+        uses: actions/checkout@v4   # v4 目前仍穩定，若警告可改 v6
 
-      - uses: actions/setup-python@v6
+      - name: 設置 Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - run: pip install requests
+      - name: 安裝依賴
+        run: pip install requests
 
-      - run: python update_ips.py
+      - name: 運行更新腳本
+        run: python update_ips.py
 
-      - name: 提交並推送
+      - name: 提交並推送（安全處理衝突）
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          # 先拉取遠端最新變化，避免 rejected
+          git fetch origin
+          git rebase origin/main || git rebase --abort && echo "Rebase 失敗，已中止"
+          
           git add cf-ips.txt
-          git commit -m "自動更新 $(date +'%Y-%m-%d %H:%M HKT')" || echo "無變化"
-          git push origin HEAD:${{ github.ref_name }}
+          
+          # 只在有實際變化時 commit
+          git diff --staged --quiet || git commit -m "自動更新優選 IP 列表 $(date +'%Y-%m-%d %H:%M HKT')"
+          
+          # 推送（如果仍衝突，可考慮 --force-with-lease 但謹慎使用）
+          git push origin main
