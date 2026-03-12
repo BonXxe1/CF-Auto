@@ -1,20 +1,21 @@
-# CloudFlare 優選 IP（速度 ≥ 20.0 mb/s）
-# 更新時間：2026-03-12 04:33:39 HKT
-# 來源：https://api.urlce.com/cloudflare.html
-# 抓取有效條目：IPv4 5 條 / IPv6 3 條
-#
-# 注意：如果數量為 0，請檢查 Actions 日誌的匹配行數與示例
+# CloudFlare 优选 IP（多来源整合，按速度降序取最快16个）
+# 更新时间：2026-03-12 04:37:38 HKT
+# 来源：urlce.com + vvhan.com + HostMonit 等
+# IPv4 最快 6 个 / IPv6 最快 3 个
+# 速度阈值 >= 20.0 mb/s（无速度来源默认 0）
 
-# IPv4
+# IPv4 最快 16 个（格式：IP#地区）
 162.159.38.250#KR
 172.64.53.74#HK
 172.64.52.214#SG
 162.159.44.97#TW
 162.159.45.216#JP
+172.64.52.3#TW
 
-# IPv6
-[2a06:98c1:3109:be:eed5:a58c:47d9:836d]#TW
-[2a06:98c1:310f:6877:8189:86b6:1aa5:b5d]#KR
-[2a06:98c1:310c:8c:e50e:942e:fbe6:b0e]#HK
+# IPv6 最快 16 个（格式：[IPv6]#地区）
+[2a06:98c1:3109:be:eed5:a58c:47d9:836d]#KR
+[2a06:98c1:310f:6877:8189:86b6:1aa5:b5d]#HK
+[2a06:98c1:310c:8c:e50e:942e:fbe6:b0e]#JP
 
-# 使用方式：直接複製到 v2rayN / Nekobox / Clash 自訂優選列表
+# 使用方式：直接复制到 v2rayN / Nekobox / Clash 的自定义优选列表
+# 香港用户优先测试 HK/SG 开头的条目
