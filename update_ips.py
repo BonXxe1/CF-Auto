@@ -2,26 +2,48 @@ import requests
 import re
 import random
 from datetime import datetime
+from typing import List, Tuple
 
 # =====================================================
-# 設定區
+# 多来源配置（可继续添加更多）
 # =====================================================
-URL = "https://api.urlce.com/cloudflare.html"
+SOURCES = [
+    {
+        "name": "麒麟检测 (urlce.com) - 每10分钟更新",
+        "url": "https://api.urlce.com/cloudflare.html",
+        "pattern": r'\|\s*\d+\s*\|\s*[^\|]+\s*\|\s*([^\|\s]+)\s*\|\s*[^\|]*\s*\|\s*[^\|]*\s*\|\s*([\d\.]+)mb/s',
+        "speed_unit": "mb/s"
+    },
+    {
+        "name": "vvhan.com - 每15分钟更新",
+        "url": "https://cf.vvhan.com/",
+        "pattern": r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})',  # 只抓 IPv4，无速度
+        "speed_unit": None
+    },
+    # 添加更多来源示例（可自行扩展）
+    {
+        "name": "HostMonit CloudFlareYes (JSON)",
+        "url": "https://stock.hostmonit.com/CloudFlareYes",
+        "pattern": r'"ip":"([^"]+)"',  # 抓 JSON 中的 ip 字段
+        "speed_unit": None
+    },
+    # 如果有其他 txt/raw 链接，也可以加在这里
+    # 示例：{"name": "DustinWin BestCF", "url": "https://raw.githubusercontent.com/DustinWin/BestCF/main/cmcc-ip.txt", "pattern": r'^(\S+)$'}
+]
+
 REGIONS = ["US", "JP", "KR", "HK", "SG", "TW"]
-OUTPUT_FILE = "cf-ips.txt"
 MIN_SPEED = 20.0
+MAX_PER_TYPE = 16  # 每种类型最多 16 个
+OUTPUT_FILE = "cf-ips.txt"
 
 headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
 }
 
-# 當請求失敗時的備用 IP（可自行增減）
+# 备用 IP（所有来源失败时使用）
 FALLBACK_IPV4 = [
-    "162.159.38.250",
-    "172.64.53.74",
-    "172.64.52.214",
-    "162.159.44.97",
-    "162.159.45.216"
+    "162.159.38.250", "172.64.53.74", "172.64.52.214",
+    "162.159.44.97", "162.159.45.216", "172.64.52.3"
 ]
 
 FALLBACK_IPV6 = [
@@ -31,116 +53,115 @@ FALLBACK_IPV6 = [
 ]
 
 # =====================================================
-# 主程式
+# 函数：从单个来源提取 IP 和速度
 # =====================================================
-text = ""
+def extract_from_source(source: dict) -> List[Tuple[str, float]]:
+    items = []
+    try:
+        resp = requests.get(source["url"], headers=headers, timeout=20)
+        resp.raise_for_status()
+        text = resp.text
 
-try:
-    response = requests.get(URL, headers=headers, timeout=30)
-    response.raise_for_status()
-    text = response.text
+        matches = re.findall(source["pattern"], text, re.IGNORECASE | re.MULTILINE)
 
-    print("頁面抓取成功，長度:", len(text))
-    print("包含 'mb/s'？", "mb/s" in text)
-    print("包含 '優選IP'？", "優選IP" in text)
-    print("包含 '电信'？", "电信" in text)
+        for match in matches:
+            if isinstance(match, tuple):
+                ip, speed_str = match
+                try:
+                    speed = float(speed_str)
+                except:
+                    speed = 0.0
+            else:
+                ip = match.strip()
+                speed = 0.0  # 无速度来源默认 0
 
-except Exception as e:
-    print("抓取失敗:", str(e))
-    print("使用 fallback IP 清單")
-
-# =====================================================
-# 正則：完整行匹配（最可靠方式）
-# 格式：| 數字 | 线路 | IP | 丟包 | 延迟 | 速度mb/s | ...
-# =====================================================
-pattern = r'\|\s*\d+\s*\|\s*[^\|]+\s*\|\s*([^\|\s]+)\s*\|\s*[^\|]*\s*\|\s*[^\|]*\s*\|\s*([\d\.]+)mb/s'
-
-matches = re.findall(pattern, text, re.IGNORECASE | re.MULTILINE)
-
-print("匹配到的有效行數:", len(matches))
-
-if matches and len(matches) > 0:
-    print("前 3 筆匹配結果 (IP, 速度):")
-    for item in matches[:3]:
-        print(item)
+            if ip:
+                items.append((ip, speed))
+        print(f"从 {source['name']} 提取到 {len(items)} 个 IP")
+    except Exception as e:
+        print(f"来源 {source['name']} 失败: {e}")
+    return items
 
 # =====================================================
-# 處理結果
+# 主逻辑
 # =====================================================
-ipv4_list = []
-ipv6_list = []
-seen = set()
+all_ipv4: List[Tuple[str, float]] = []
+all_ipv6: List[Tuple[str, float]] = []
 
+for src in SOURCES:
+    items = extract_from_source(src)
+    for ip, speed in items:
+        if ':' in ip:
+            all_ipv6.append((ip, speed))
+        elif re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip):
+            all_ipv4.append((ip, speed))
+
+# 去重（保留最高速度）
+ipv4_dict = {}
+for ip, speed in all_ipv4:
+    if ip not in ipv4_dict or speed > ipv4_dict[ip]:
+        ipv4_dict[ip] = speed
+
+ipv6_dict = {}
+for ip, speed in all_ipv6:
+    if ip not in ipv6_dict or speed > ipv6_dict[ip]:
+        ipv6_dict[ip] = speed
+
+# 排序 + 取前16
+top_ipv4 = sorted(ipv4_dict.items(), key=lambda x: x[1], reverse=True)[:MAX_PER_TYPE]
+top_ipv6 = sorted(ipv6_dict.items(), key=lambda x: x[1], reverse=True)[:MAX_PER_TYPE]
+
+# 补 fallback
+for fb_ip in FALLBACK_IPV4:
+    if fb_ip not in ipv4_dict and len(top_ipv4) < MAX_PER_TYPE:
+        top_ipv4.append((fb_ip, 0.0))
+
+for fb_ip in FALLBACK_IPV6:
+    if fb_ip not in ipv6_dict and len(top_ipv6) < MAX_PER_TYPE:
+        top_ipv6.append((fb_ip, 0.0))
+
+# 分配地区
 random.seed(datetime.now().strftime("%Y%m%d"))
 
-for ip, speed_str in matches:
-    try:
-        speed = float(speed_str)
-        if speed < MIN_SPEED or ip in seen:
-            continue
+def format_entry(entry: Tuple[str, float]) -> str:
+    ip, _ = entry
+    region = random.choice(REGIONS)
+    return f"{ip}#{region}" if '.' in ip else f"[{ip}]#{region}"
 
-        seen.add(ip)
-        region = random.choice(REGIONS)
-
-        if ':' in ip and ip.count(':') >= 5:  # 加強過濾，避免誤抓時間戳
-            ipv6_list.append(f"[{ip}]#{region}")
-        elif re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip):
-            ipv4_list.append(f"{ip}#{region}")
-
-    except ValueError:
-        continue
-
-# 加入 fallback（當完全抓不到時至少有東西）
-for ip in FALLBACK_IPV4:
-    if ip not in seen:
-        seen.add(ip)
-        region = random.choice(REGIONS)
-        ipv4_list.append(f"{ip}#{region}")
-
-for ip in FALLBACK_IPV6:
-    if ip not in seen:
-        seen.add(ip)
-        region = random.choice(REGIONS)
-        ipv6_list.append(f"[{ip}]#{region}")
+ipv4_formatted = [format_entry(e) for e in top_ipv4]
+ipv6_formatted = [format_entry(e) for e in top_ipv6]
 
 # =====================================================
-# 產生檔案內容
+# 生成文件
 # =====================================================
 update_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " HKT"
 
-content = f"""# CloudFlare 優選 IP（速度 ≥ {MIN_SPEED} mb/s）
-# 更新時間：{update_time}
-# 來源：{URL}
-# 抓取有效條目：IPv4 {len(ipv4_list)} 條 / IPv6 {len(ipv6_list)} 條
-#
-# 注意：如果數量為 0，請檢查 Actions 日誌的匹配行數與示例
+content = f"""# CloudFlare 优选 IP（多来源整合，按速度降序取最快16个）
+# 更新时间：{update_time}
+# 来源：urlce.com + vvhan.com + HostMonit 等
+# IPv4 最快 {len(ipv4_formatted)} 个 / IPv6 最快 {len(ipv6_formatted)} 个
+# 速度阈值 >= {MIN_SPEED} mb/s（无速度来源默认 0）
 
-# IPv4
-""" + "\n".join(ipv4_list[:40]) + """
+# IPv4 最快 16 个（格式：IP#地区）
+""" + "\n".join(ipv4_formatted) + """
 
-# IPv6
-""" + "\n".join(ipv6_list[:20]) + """
+# IPv6 最快 16 个（格式：[IPv6]#地区）
+""" + "\n".join(ipv6_formatted) + """
 
-# 使用方式：直接複製到 v2rayN / Nekobox / Clash 自訂優選列表
+# 使用方式：直接复制到 v2rayN / Nekobox / Clash 的自定义优选列表
+# 香港用户优先测试 HK/SG 开头的条目
 """
 
 with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
     f.write(content)
 
 # =====================================================
-# 最後輸出 debug 資訊
+# 日志输出
 # =====================================================
-print("\n" + "="*50)
-print("最終輸出結果：")
-print("IPv4 數量:", len(ipv4_list))
-print("IPv6 數量:", len(ipv6_list))
-
-if ipv4_list:
-    print("前 5 條 IPv4：")
-    for line in ipv4_list[:5]:
-        print(line)
-
-if ipv6_list:
-    print("前 5 條 IPv6：")
-    for line in ipv6_list[:5]:
-        print(line)
+print(f"完成！IPv4 最快 {len(ipv4_formatted)} 个，IPv6 最快 {len(ipv6_formatted)} 个")
+print("IPv4 前5示例：")
+for line in ipv4_formatted[:5]:
+    print(line)
+print("IPv6 前5示例：")
+for line in ipv6_formatted[:5]:
+    print(line)
