@@ -8,17 +8,15 @@ import os
 # ================== 配置 ==================
 URL = "https://api.urlce.com/cloudflare.html"
 REGIONS = ["US", "JP", "KR", "HK", "SG", "TW"]
-OUTPUT_FILE = "cloudflare-优选列表.txt"
+OUTPUT_FILE = "cf-ips.txt"          # ← 改成英文名，彻底解决乱码
 # ========================================
 
-# 每天固定随机种子（让列表每天基本一样）
 random.seed(datetime.now().strftime("%Y%m%d"))
 
 response = requests.get(URL)
 soup = BeautifulSoup(response.text, "html.parser")
 text = soup.get_text()
 
-# 匹配 Markdown 表格行：线路 | IP | ... | 速度
 pattern = r'\| \d+ \| (电信|联通|移动|多线|IPV6) \| ([\w\.:]+) \| [^|]+ \| [^|]+ \| ([\d.]+)mb/s \|'
 matches = re.findall(pattern, text)
 
@@ -33,17 +31,15 @@ for line_type, ip, speed_str in matches:
     except:
         continue
 
-    # 随机分配地区
     region = random.choice(REGIONS)
 
-    if ':' in ip:  # IPv6
+    if ':' in ip:
         formatted = f"[{ip}]#{region}|IPV6优选|"
         ipv6_list.append(formatted)
-    else:  # IPv4
+    else:
         formatted = f"{ip}#{region}|IPV4优选|"
         ipv4_list.append(formatted)
 
-# 生成文件内容
 content = f"""# 麒麟 CloudFlare 优选 IP 列表（速度≥20mb/s）
 # 更新时间：{datetime.now().strftime("%Y-%m-%d %H:%M:%S")} (每天自动更新)
 # 来源：https://api.urlce.com/cloudflare.html
